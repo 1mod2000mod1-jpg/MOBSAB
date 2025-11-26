@@ -1,20 +1,20 @@
+from flask import Flask, render_template_string, redirect, url_for
 import requests
 from faker import Faker
 import time
 import random
 import string
 
-# =======================================================================
-# === 🚨 الخطوة 1: رابط الهدف (يجب استبدال الـ PLACEHOLDER) 🚨 ===
-# =======================================================================
+app = Flask(__name__)
 
-# استبدل هذا بعنوان URL الفعلي الذي تم تجميعه
+# =============================================================
+# === 🚨 نقطة التفعيل النهائية: يجب تعديل هذه المتغيرات 🚨 ===
+# =============================================================
+
+# 1. استبدل هذا بعنوان URL النهائي: https://ladypopular.com/ajax/user.php
 TARGET_URL = "https://ladypopular.com/ajax/user.php"
 
-# =======================================================================
-# === 🚨 الخطوة 2: أسماء الحقول (يجب استبدال الـ PLACEHOLDER) 🚨 ===
-# =======================================================================
-
+# 2. أسماء الحقول الحقيقية التي تم جمعها:
 FIELD_USERNAME = "reg_user"
 FIELD_PASSWORD = "reg_pass"
 FIELD_EMAIL = "reg_email"
@@ -22,9 +22,43 @@ FIELD_TERMS = "reg_terms"
 FIELD_PRIVACY = "reg_privacy"
 FIELD_MARKETING = "marketing-consent-choice"
 
-# =======================================================================
+# =============================================================
 
 fake = Faker()
+
+# ترميز صفحة الويب التفاعلية (Template)
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MOBY - Phantom Recruiter</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: #fff; text-align: center; padding-top: 50px; }
+        .container { background: #333; padding: 30px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 0 20px #000; }
+        h1 { color: #f90; }
+        .log { background: #000; padding: 10px; margin: 15px 0; border-radius: 5px; text-align: left; max-height: 300px; overflow-y: scroll; }
+        .success { color: #5cb85c; }
+        .failure { color: #d9534f; }
+        .btn { background-color: #f90; color: #000; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MOBY - منشئ الحسابات الوهمية 😈</h1>
+        <p>الضغط على الزر سيطلق محاولة إنشاء حساب واحد (Username = Password).</p>
+        <a href="{{ url_for('create_account') }}" class="btn">إنشاء حساب جديد</a>
+        <div class="log">
+            {% for entry in log %}
+                <p class="{{ 'success' if 'نجاح' in entry else 'failure' }}">{{ entry }}</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+# لتبسيط الأمر، سنستخدم قائمة بسيطة لتخزين نتائج السجلات
+RECRUITMENT_LOG = []
 
 def generate_user_data_logic():
     """توليد البيانات: اسم المستخدم هو نفسه كلمة المرور"""
@@ -38,10 +72,10 @@ def generate_user_data_logic():
     
     return username, password, email
 
-def register_account(session, username, password, email):
+def register_account(username, password, email):
     """إرسال طلب POST لتسجيل حساب جديد"""
+    session = requests.Session()
     
-    # حمولة البيانات الكاملة
     payload = {
         FIELD_USERNAME: username,
         FIELD_PASSWORD: password,
@@ -55,30 +89,28 @@ def register_account(session, username, password, email):
         response = session.post(TARGET_URL, data=payload, timeout=15)
         
         if response.status_code == 200 and ("success" in response.text.lower() or "ok" in response.text.lower()):
-            print(f"✅ نجاح: تم تجنيد حساب جديد. بيانات الدخول:")
-            print(f"    - اسم المستخدم (Username): {username}")
-            print(f"    - كلمة المرور (Password): {password}")
-            print("-" * 30)
-            return True
+            log_entry = f"✅ نجاح: {username} | الباسوورد: {password}"
+            RECRUITMENT_LOG.insert(0, log_entry) # إضافة الأحدث في الأعلى
         else:
-            print(f"❌ فشل التسجيل لـ {username} | الحالة: {response.status_code}")
-            return False
+            log_entry = f"❌ فشل: {username} | الحالة: {response.status_code}"
+            RECRUITMENT_LOG.insert(0, log_entry) 
 
     except requests.exceptions.RequestException as e:
-        print(f"⛔ خطأ في الاتصال لـ {username}: {e}")
-        return False
+        log_entry = f"⛔ خطأ في الاتصال: {e}"
+        RECRUITMENT_LOG.insert(0, log_entry)
 
-def main_recruitment_loop(count=50):
-    """حلقة التجنيد الرئيسية"""
-    print(f"--- بدء عملية تجنيد {count} حسابات وهمية ---")
-    session = requests.Session()
-    
-    for i in range(count):
-        username, password, email = generate_user_data_logic()
-        register_account(session, username, password, email)
-        time.sleep(random.uniform(2.5, 5.0)) 
-        
-    print("--- انتهاء العملية. ---")
+@app.route('/')
+def index():
+    """عرض صفحة الويب الرئيسية"""
+    return render_template_string(HTML_TEMPLATE, log=RECRUITMENT_LOG)
 
-if __name__ == "__main__":
-    main_recruitment_loop(count=50)
+@app.route('/create', methods=['GET'])
+def create_account():
+    """نقطة النهاية لتنفيذ عملية إنشاء الحساب"""
+    username, password, email = generate_user_data_logic()
+    register_account(username, password, email)
+    return redirect(url_for('index')) # العودة للصفحة الرئيسية لتحديث السجل
+
+if __name__ == '__main__':
+    # يجب أن يستخدم هذا المتغير في Render لفتح البورت
+    app.run(host='0.0.0.0', port=random.randint(5000, 8000))
