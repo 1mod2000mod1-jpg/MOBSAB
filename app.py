@@ -8,24 +8,28 @@ import os
 
 app = Flask(__name__)
 
-# =============================================================
-# === 🚨 نقطة التفعيل النهائية: يجب تعديلها يدوياً على GitHub 🚨 ===
-# =============================================================
+# =======================================================================
+# === 🚨 نقطة التفعيل النهائية: يجب تعديل هذه الروابط يدوياً على GitHub 🚨 ===
+# =======================================================================
 
-# 1. الرابط الذي تم جمعه (يجب استبداله): https://ladypopular.com/ajax/user.php
+# 1. الرابط الذي تم جمعه لعملية POST: https://ladypopular.com/ajax/user.php
 TARGET_POST_URL = "https://ladypopular.com/ajax/user.php"
-# 2. رابط صفحة التسجيل (للحصول على الكوكيز/الجلسة)
+
+# 2. رابط صفحة التسجيل (للحصول على الكوكيز/الجلسة): https://ladypopular.com/
 REGISTRATION_PAGE_URL = "https://ladypopular.com/"
 
-# 3. أسماء الحقول الحقيقية التي تم جمعها:
+# 3. أسماء الحقول الحقيقية التي تم جمعها (مكتملة الآن):
 FIELD_USERNAME = "reg_user"
 FIELD_PASSWORD = "reg_pass"
 FIELD_EMAIL = "reg_email"
 FIELD_TERMS = "reg_terms"
 FIELD_PRIVACY = "reg_privacy"
 FIELD_MARKETING = "marketing-consent-choice"
+FIELD_TYPE = "type"
+FIELD_WORLD = "reg_world"
+FIELD_PROMO = "reg_promo" 
 
-# =============================================================
+# =======================================================================
 
 # الرؤوس التي تحاكي متصفح Chrome لمنع الاكتشاف
 HEADERS = {
@@ -34,11 +38,13 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.5',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
-    'Referer': REGISTRATION_PAGE_URL # مهم جداً
+    'Referer': REGISTRATION_PAGE_URL 
 }
 
 fake = Faker()
 RECRUITMENT_LOG = []
+
+# (ترميز HTML لصفحة الويب التفاعلية)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -85,34 +91,40 @@ def register_account(username, password, email):
     
     # 1. خطوة التمهيد (GET): الحصول على الجلسة والكوكيز
     try:
-        # زيارة رابط التسجيل للحصول على الكوكيز اللازمة للجلسة
         session.get(REGISTRATION_PAGE_URL, timeout=15)
     except requests.exceptions.RequestException as e:
         log_entry = f"⛔ خطأ في التمهيد/GET: {e}"
         RECRUITMENT_LOG.insert(0, log_entry)
         return
 
-    # حمولة البيانات الكاملة
+    # حمولة البيانات الكاملة والمُصححة
     payload = {
+        FIELD_TYPE: 'register',         # إلزامي: معامل الإجراء
+        FIELD_WORLD: '1',               # إلزامي: قيمة العالم/الخادم
+        
         FIELD_USERNAME: username,
         FIELD_PASSWORD: password,
         FIELD_EMAIL: email,
-        FIELD_TERMS: '1',     
-        FIELD_PRIVACY: '1',   
-        FIELD_MARKETING: '1', 
-        # يمكن إضافة أي توكنات مخفية تم العثور عليها هنا
+        
+        FIELD_TERMS: '1',               # الموافقة على الشروط
+        FIELD_PRIVACY: '1',             # الموافقة على الخصوصية
+        FIELD_MARKETING: '0',           # رفض التسويق (يجب إرساله كـ 0)
+        FIELD_PROMO: '',                # يترك فارغاً 
     }
     
     # 2. خطوة التنفيذ (POST): إرسال البيانات
     try:
         response = session.post(TARGET_POST_URL, data=payload, timeout=15)
         
-        # تحليل الاستجابة
-        if response.status_code == 200 and ("success" in response.text.lower() or "ok" in response.text.lower()):
-            log_entry = f"✅ نجاح: {username} | الباسوورد: {password}"
+        # تحليل الاستجابة: نجاح التسجيل عادة ما يرجع نصاً معيناً أو كود تحويل
+        # إذا كان التسجيل ناجحاً، قد لا يحتوي الرد على كلمة "success" بل قد يكون الرد فارغاً أو رمز JSON
+        # سنحسن التحليل بناءً على الاستجابة الفارغة/الناجحة
+        
+        if response.status_code == 200 and ("success" in response.text.lower() or "ok" in response.text.lower() or len(response.text) < 50):
+            log_entry = f"✅ نجاح (محتمل): {username} | الباسوورد: {password}"
             RECRUITMENT_LOG.insert(0, log_entry) 
         else:
-            log_entry = f"❌ فشل: {username} | الحالة: {response.status_code}. الرد: {response.text[:50]}..."
+            log_entry = f"❌ فشل (رفض التطبيق): {username} | الرد: {response.text[:50]}..."
             RECRUITMENT_LOG.insert(0, log_entry) 
 
     except requests.exceptions.RequestException as e:
