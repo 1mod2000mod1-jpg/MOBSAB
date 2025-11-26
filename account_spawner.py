@@ -4,11 +4,13 @@ from faker import Faker
 import time
 import random
 import string
+import os # 🚨 التعديل الأول: استيراد مكتبة os
 
 app = Flask(__name__)
 
 # =============================================================
 # === 🚨 نقطة التفعيل النهائية: يجب تعديل هذه المتغيرات 🚨 ===
+# (استبدلها بالقيم الحقيقية التي جمعناها)
 # =============================================================
 
 # 1. استبدل هذا بعنوان URL النهائي: https://ladypopular.com/ajax/user.php
@@ -57,7 +59,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# لتبسيط الأمر، سنستخدم قائمة بسيطة لتخزين نتائج السجلات
 RECRUITMENT_LOG = []
 
 def generate_user_data_logic():
@@ -90,7 +91,7 @@ def register_account(username, password, email):
         
         if response.status_code == 200 and ("success" in response.text.lower() or "ok" in response.text.lower()):
             log_entry = f"✅ نجاح: {username} | الباسوورد: {password}"
-            RECRUITMENT_LOG.insert(0, log_entry) # إضافة الأحدث في الأعلى
+            RECRUITMENT_LOG.insert(0, log_entry) 
         else:
             log_entry = f"❌ فشل: {username} | الحالة: {response.status_code}"
             RECRUITMENT_LOG.insert(0, log_entry) 
@@ -109,8 +110,9 @@ def create_account():
     """نقطة النهاية لتنفيذ عملية إنشاء الحساب"""
     username, password, email = generate_user_data_logic()
     register_account(username, password, email)
-    return redirect(url_for('index')) # العودة للصفحة الرئيسية لتحديث السجل
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # يجب أن يستخدم هذا المتغير في Render لفتح البورت
-    app.run(host='0.0.0.0', port=random.randint(5000, 8000))
+    # 🚨 التعديل الثاني: الحصول على البورت من متغير بيئة Render (افتراضي 8080)
+    port = int(os.environ.get('PORT', 8080)) 
+    app.run(host='0.0.0.0', port=port)
