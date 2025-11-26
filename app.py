@@ -4,19 +4,20 @@ from faker import Faker
 import time
 import random
 import string
-import os # 🚨 التعديل الأول: استيراد مكتبة os
+import os 
 
 app = Flask(__name__)
 
 # =============================================================
-# === 🚨 نقطة التفعيل النهائية: يجب تعديل هذه المتغيرات 🚨 ===
-# (استبدلها بالقيم الحقيقية التي جمعناها)
+# === 🚨 نقطة التفعيل النهائية: يجب تعديلها يدوياً على GitHub 🚨 ===
 # =============================================================
 
-# 1. استبدل هذا بعنوان URL النهائي: https://ladypopular.com/ajax/user.php
-TARGET_URL = "https://ladypopular.com/ajax/user.php"
+# 1. الرابط الذي تم جمعه (يجب استبداله): https://ladypopular.com/ajax/user.php
+TARGET_POST_URL = "https://ladypopular.com/ajax/user.php"
+# 2. رابط صفحة التسجيل (للحصول على الكوكيز/الجلسة)
+REGISTRATION_PAGE_URL = "https://ladypopular.com/"
 
-# 2. أسماء الحقول الحقيقية التي تم جمعها:
+# 3. أسماء الحقول الحقيقية التي تم جمعها:
 FIELD_USERNAME = "reg_user"
 FIELD_PASSWORD = "reg_pass"
 FIELD_EMAIL = "reg_email"
@@ -26,9 +27,18 @@ FIELD_MARKETING = "marketing-consent-choice"
 
 # =============================================================
 
-fake = Faker()
+# الرؤوس التي تحاكي متصفح Chrome لمنع الاكتشاف
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Referer': REGISTRATION_PAGE_URL # مهم جداً
+}
 
-# ترميز صفحة الويب التفاعلية (Template)
+fake = Faker()
+RECRUITMENT_LOG = []
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -59,24 +69,30 @@ HTML_TEMPLATE = """
 </html>
 """
 
-RECRUITMENT_LOG = []
-
 def generate_user_data_logic():
     """توليد البيانات: اسم المستخدم هو نفسه كلمة المرور"""
     chars = string.ascii_lowercase + string.digits
     base_name = ''.join(random.choice(chars) for _ in range(8))
-    
     username = base_name
     password = base_name
-    
     email = fake.user_name() + str(random.randint(1, 999)) + "@" + fake.domain_name()
-    
     return username, password, email
 
 def register_account(username, password, email):
-    """إرسال طلب POST لتسجيل حساب جديد"""
+    """عملية التسجيل المكونة من خطوتين (GET -> POST) لتجاوز الحماية"""
     session = requests.Session()
+    session.headers.update(HEADERS)
     
+    # 1. خطوة التمهيد (GET): الحصول على الجلسة والكوكيز
+    try:
+        # زيارة رابط التسجيل للحصول على الكوكيز اللازمة للجلسة
+        session.get(REGISTRATION_PAGE_URL, timeout=15)
+    except requests.exceptions.RequestException as e:
+        log_entry = f"⛔ خطأ في التمهيد/GET: {e}"
+        RECRUITMENT_LOG.insert(0, log_entry)
+        return
+
+    # حمولة البيانات الكاملة
     payload = {
         FIELD_USERNAME: username,
         FIELD_PASSWORD: password,
@@ -84,16 +100,19 @@ def register_account(username, password, email):
         FIELD_TERMS: '1',     
         FIELD_PRIVACY: '1',   
         FIELD_MARKETING: '1', 
+        # يمكن إضافة أي توكنات مخفية تم العثور عليها هنا
     }
     
+    # 2. خطوة التنفيذ (POST): إرسال البيانات
     try:
-        response = session.post(TARGET_URL, data=payload, timeout=15)
+        response = session.post(TARGET_POST_URL, data=payload, timeout=15)
         
+        # تحليل الاستجابة
         if response.status_code == 200 and ("success" in response.text.lower() or "ok" in response.text.lower()):
             log_entry = f"✅ نجاح: {username} | الباسوورد: {password}"
             RECRUITMENT_LOG.insert(0, log_entry) 
         else:
-            log_entry = f"❌ فشل: {username} | الحالة: {response.status_code}"
+            log_entry = f"❌ فشل: {username} | الحالة: {response.status_code}. الرد: {response.text[:50]}..."
             RECRUITMENT_LOG.insert(0, log_entry) 
 
     except requests.exceptions.RequestException as e:
@@ -113,6 +132,6 @@ def create_account():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # 🚨 التعديل الثاني: الحصول على البورت من متغير بيئة Render (افتراضي 8080)
+    # الاستماع إلى البورت المحدد بواسطة متغير بيئة Render
     port = int(os.environ.get('PORT', 8080)) 
     app.run(host='0.0.0.0', port=port)
